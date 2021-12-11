@@ -32,7 +32,7 @@ In this project I was able to create an interactive plot, a spatial visualizatio
 
 In this project, I was able to reproduce some visualizations that show the distributions of a continuous variable created by Dr. Sanchez based on the dataset obtained from FSU's [Florida Climate Center](https://climatecenter.fsu.edu/climate-data-access-tools/downloadable-data), for a station at Tampa International Airport (TPA) from 2016 to 2017.
 
-**Sample Visualization:** Using ggridges to create a plot of the maximum temperature in degrees each month with the plasma color scale.
+**Sample Visualization:** Using ggridges to create a plot of the maximum temperature in degrees each month with the plasma color scale <br>
 ![](figures/plasma_ggridges.png)
 
 
