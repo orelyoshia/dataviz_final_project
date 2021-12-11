@@ -1,0 +1,286 @@
+---
+title: "Mini-Project 01"
+author: "Orel Yoshia `oyoshia3972@floridapoly.edu`"
+output: 
+  html_document:
+    keep_md: true
+    toc: true
+    toc_float: true
+---
+
+# Data Visualization Project 01
+
+
+```{r}
+library(readr)
+library(tidyverse)
+library(tidytext)
+library(dplyr)
+library(ggplot2)
+library(stringr)
+library(ggraph)
+```
+
+```{r}
+CourseInventory <- read.csv("../data/CourseInventory.csv")
+```
+
+```{r}
+# Renaming the first column since it seemed to have issues
+names(CourseInventory)[1] <- 'DiscipTitle'
+```
+
+
+# Introduction
+
+For this project I am using data from the Florida Statewide Course Numbering System part of the Florida Department of Education. This dataset contains information about all courses registered in the Statewide System. I specifically chose to look at 14 different Disciplines. Disciplines are the main topics of Courses, each course listed falls under these categories. 
+
+```{r}
+head(CourseInventory)
+```
+
+## Number of Courses in Each Discipline
+
+The first thing I wanted to look at was the amount of courses each Discipline has.
+
+```{r}
+courseamount <- CourseInventory %>% 
+  group_by(DiscipTitle) %>% 
+  count(DiscipTitle, sort = TRUE, name = "Number_of_Courses_in_Discipline")
+
+courseamount
+```
+
+```{r courses_by_discipline}
+ggplot(courseamount, aes(x = reorder(DiscipTitle, -Number_of_Courses_in_Discipline), 
+                         y = Number_of_Courses_in_Discipline,
+                         fill = Number_of_Courses_in_Discipline)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  coord_flip() +
+  theme_minimal() +
+  labs(x = "Discipline Title",
+       y = "Amount of Courses in Each Discipline",
+       title = "Courses by Discipline",
+       caption = "Source: Florida Statewide Course Numbering System") +
+  theme(plot.title.position = "plot")
+```
+
+Of the 14 Disciplines we looked at, we see that Computer Science and Computing Technologies has the most amount of courses. I think because it is a topic with such a range of different topics it would make sense that there are so many possible courses.
+
+The next thing I wanted to look at was if the type of institution affected how many courses were offered.
+
+
+## Do Community Colleges offer more courses than Universities?
+
+```{r}
+courses_by_college_type <- CourseInventory %>%
+  group_by(Institution_Level) %>%  
+  summarise(Number_of_Courses_Per_College = n(),.groups = "drop") %>% 
+  arrange(desc(Number_of_Courses_Per_College))
+courses_by_college_type
+
+```
+
+```{r number_of_courses_per_institution}
+ggplot(courses_by_college_type, mapping = aes(x = reorder(Institution_Level, -Number_of_Courses_Per_College), 
+                                               y = Number_of_Courses_Per_College,
+                                               fill = Number_of_Courses_Per_College)) +
+  geom_col(show.legend = FALSE) +
+  coord_flip() +
+  theme_minimal() +
+  labs(x = "Type of Institution",
+       y = "Number of Courses per type of Institution",
+       title = "Number of Courses per Type of Institution",
+       caption = "Source: Florida Statewide Course Numbering System") +
+  theme(plot.title.position = "plot")
+```
+
+
+Like I assumed, University's would offer the majority of the courses. This probably also has to do with the fact that I think more students attend University's rather than a Vocational School. Following this I wanted to see which Institution offered the most amount of courses.
+
+# Number of courses in Each Institution type by Institution
+
+```{r}
+courses_by_college <- CourseInventory %>% 
+  group_by(Institution_Level, Institution) %>%  
+  summarise(Number_of_Courses_Per_College = n(),.groups = "drop") %>% 
+  arrange(desc(Number_of_Courses_Per_College))
+  
+head(courses_by_college, 15)
+```
+
+## Boxplot showing each Institution Type
+
+```{r boxplot_courses_per_type_of_institution}
+ggplot(courses_by_college) +
+  geom_boxplot(mapping = aes(x = Institution_Level, y = Number_of_Courses_Per_College)) +
+  coord_flip() +
+  theme_minimal() +
+  labs(x = "Type of Institution",
+       y = "Number of Courses per Institution Type",
+       title = "Box Plot of Number of Courses per Type of Institution",
+       caption = "Source: Florida Statewide Course Numbering System") +
+  theme(plot.title.position = "plot")
+```
+
+From this box plot we can see a few things. For example, if we look at University, we see that there are roughly 625 courses but the median for a Community College is about 200. There are some different institutions that barely offer these courses. We see that there is one outlier in University and that would be UCF with almost 2000 available courses in these 14 Disciplines. Based on this information, if a student was looking into going into a STEM field (since these Disciplines are all STEM based), then they would have more options for courses at a University.
+
+# Top 15 Institutions offering the most courses in the 14 Disciplines we've been exploring
+
+```{r top_15_institutions}
+ggplot((head(courses_by_college, 15)), 
+       mapping = aes(x = reorder(Institution, -Number_of_Courses_Per_College), 
+                                               y = Number_of_Courses_Per_College,
+                                               fill = Number_of_Courses_Per_College)) +
+  geom_col(show.legend = FALSE) +
+  coord_flip() +
+  theme_minimal() +
+  labs(x = "Type of Institution",
+       y = "Number of Courses per Institution",
+       title = "Top 15 Institutions with the Most Amount of Courses Offered",
+       caption = "Source: Florida Statewide Course Numbering System") +
+  theme(plot.title.position = "plot")
+```
+
+It would be really interesting to look at a dataset with information about each Institution specifically the number of students attending the Institution. You would then be able to justify if it makes sense for UCF, for example, to have 2000 different courses in these 14 Disciplines. By looking at this, school administrators can also see if maybe there are too many courses being offered and they can lower the amount while still ensuring every student is getting the courses they need.
+
+The next step I wanted to take was comparing the State Course Descriptions and the Institution Course Descriptions and seeing if there was any trend between the two.
+
+
+# State Course Description VS. Institution Course Description
+
+## State Course Description Analysis
+
+##### Performing Tokenization and Removing Stop Words
+
+```{r}
+tidy_description_st <- CourseInventory %>% 
+  unnest_tokens(word, Course_Desc) %>% 
+  anti_join(stop_words)
+```
+##### Looking at the most common words in the descriptions for the course.
+
+```{r}
+tidy_description_st %>% 
+  count(word, sort = TRUE)
+```
+
+##### Visualizing the most common words.
+
+```{r most_common_words_in_state_course_descriptions}
+tidy_description_st %>% 
+  count(word, sort = TRUE) %>% 
+  filter(n >= 1500) %>% 
+  mutate(word = reorder(word, n)) %>% 
+  ggplot(aes(n, word, fill = n)) +
+  geom_col(show.legend = FALSE) +
+  theme_minimal() +
+  labs(x = "Number of times word appeared in Course Descriptions",
+       y = "",
+       title = "Most Common Words in State Course Descriptions",
+       caption = "Source: Florida Statewide Course Numbering System") +
+  theme(plot.title.position = "plot")
+```
+
+
+## Institution Course Description Analysis
+
+##### Performing Tokenization and Removing Stop Words
+
+```{r}
+tidy_description_inst <- CourseInventory %>% 
+  unnest_tokens(word, Inst_Course_Desc) %>% 
+  anti_join(stop_words)
+```
+##### Looking at the most common words in the descriptions for the course.
+
+```{r}
+tidy_description_inst %>% 
+  count(word, sort = TRUE)
+```
+
+##### Visualizing the most common words.
+
+```{r most_common_words_in_inst_course_descriptions}
+tidy_description_inst %>% 
+  count(word, sort = TRUE) %>% 
+  filter(!is.na(word)) %>% 
+  filter(n >= 1500) %>% 
+  mutate(word = reorder(word, n,)) %>% 
+  ggplot(aes(n, word, fill = n)) +
+  geom_col(show.legend = FALSE) +
+  theme_minimal() +
+  labs(x = "Number of times word appeared in Course Description",
+       y = "",
+       title = "Most Common Words in Institution Course Descriptions",
+       caption = "Source: Florida Statewide Course Numbering System") +
+  theme(plot.title.position = "plot")
+```
+
+After removing stop-words and performing tokenization, I definitely feel like I could have created a dictionary to also remove words like student, students, vary, information, etc. That being said can see that bigger terms like systems, management, and data were most popular. This could help students and administration understand specific topics that these courses would be teaching and help either determine what topics you might be interested in to determine if these STEM Disciplines are right for you.
+
+
+## Looking at Florida Polytechnic University
+
+I wanted to dive a little deeper into our own university and look at the course descriptions we have in the 383 courses listed in the system for our school. I performed some tokenization and removed stop words and a couple of other words that skewed the data a little (like the word include) and then created a bi-grams chart to see the most commonly used words next to each other and how the words relate to each other.
+
+```{r}
+poly_desc <- CourseInventory %>% 
+  filter(grepl("FLPOLY", Institution, ignore.case = TRUE) == TRUE) %>% 
+  unnest_tokens(word, Inst_Course_Desc, token = "ngrams", n = 2) %>% 
+  count(word, sort = TRUE) %>% 
+  top_n(383)
+```
+
+```{r}
+poly_separate <- poly_desc %>% 
+  separate(word, c("word1", "word2"), sep = " ") %>% 
+  filter(!word1 %in% stop_words$word) %>%
+  filter(!word2 %in% stop_words$word) %>% 
+  filter(!word1 == "include") %>% 
+  filter(!word2 == "include")
+```
+
+
+```{r bigram_flpoly_course_desc, fig.width=10, fig.height=10}
+
+set.seed(2021)
+ggraph(poly_separate, layout = "fr") +
+  geom_edge_link(aes(edge_color = n), edge_width = 1) +
+  geom_node_point() +
+  geom_node_text(aes(label = name), vjust = 1, hjust = 1) +
+  theme_minimal()
+
+```
+We can see that the most common repeated words were topics covered which would make sense since we are looking at course descriptions and that usually describes what topics will be covered in the course.
+
+## Comparing the top most common words for 10 Institutions
+
+```{r top10_comp_inst}
+top_words <- tidy_description_inst %>% 
+  group_by(word) %>% 
+  count(word, sort = TRUE)
+```
+
+```{r fig.width=15, fig.height=5}
+tidy_description_inst %>%
+  filter(!is.na(word)) %>% 
+  filter(Institution %in% head(courses_by_college, 10)$Institution) %>% 
+  group_by(Institution) %>% 
+  filter(word %in% head(top_words, 15)$word) %>%
+  count(word, sort = TRUE) %>% 
+  ggplot(aes(n, word, fill = n)) +
+  geom_col(show.legend = FALSE) +
+  theme_light() +
+  facet_wrap(~substr(Institution, nchar(Institution) - 3, nchar(Institution)), nrow = 2)
+```
+
+
+What I did here was look at the top most common words out of all the course descriptions and see how often it was used in the top 10 Institutions with the most amount of courses offered. It is interesting to see the distribution of some words like students among the different schools.
+
+# Conclusion
+
+In conclusion, looking at a dataset like this one could benefit both students and administration. From a student point of view, this can give them an insight if these STEM subjects are something they want to study. It could also help them see if they have some of the skills required to further their studies in this field. From the administration point of view, this information could be useful when planning curriculum and seeing how different you are from other Universities. Each university wants to be on the top so being able to compare things as basic as the course description can really help you stand out from other universities.
+
+Throughout the project, I tried applying different principles of data visualization that have learned. The main one I wanted to implement was making the titles of the graph skewed to the left. I am still struggling visually with this because I tend to like when its skewed to the left where the plot actually starts not where the entire graph starts but it does make it look a little more organized and orderly. I also applied a minimal theme to all the graphs to get rid of the grey background and some unnecessary lines. The final thing I did was remove most of the legends. On my specific plots that I created the legends just show the colors going from light to dark based on the count and by removing it, the plots look aesthetically more appealing.
+
